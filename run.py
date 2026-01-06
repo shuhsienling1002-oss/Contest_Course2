@@ -12,7 +12,7 @@ try:
 except ImportError:
     st.error("請先安裝套件：pip install streamlit-calendar")
 
-# --- 1. 檔案設定 (固定檔名 - 保持不變) ---
+# --- 1. 檔案設定 (保持不變) ---
 DB_FILE = "gym_lessons.csv"
 REQ_FILE = "gym_requests.csv"
 STU_FILE = "gym_students.csv"
@@ -20,68 +20,88 @@ CAT_FILE = "gym_categories.csv"
 COACH_EVT_FILE = "gym_coach_events.csv"
 COACH_PASSWORD = "1234"
 
-# [修改 1] 標題設定：大胖教練
+# [標題設定]
 st.set_page_config(page_title="大胖教練排課表", layout="wide", initial_sidebar_state="collapsed")
 
-# [修改 2] 版面風格 + iOS 白底白字修復補丁
+# [版面風格 - iOS 終極修復版]
 st.markdown("""
     <style>
-    /* ========== iOS 深色模式強制修復區 (Force Light Theme) ========== */
-    /* 強制將全域文字設為深色，無視手機系統設定 */
-    .stApp, .stApp > header, .stApp > footer {
-        background-color: #f8f9fa !important; /* 強制淺灰背景 */
-        color: #333333 !important;            /* 強制深黑文字 */
-    }
-    
-    /* 強制所有輸入框 (Input)、下拉選單 (Select)、文字區 (Textarea) 樣式 */
-    input, textarea, select, div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #333333 !important;
-        border-color: #d1d5db !important;
-    }
-    
-    /* 強制 Label 與說明文字顏色 */
-    label, .stMarkdown p, .stMarkdown li, h1, h2, h3, h4, h5, h6, span {
+    /* ================================================================= */
+    /* 🛑 iOS 深色模式終極對抗區 (Nuclear Fix for Dark Mode) 🛑 */
+    /* ================================================================= */
+
+    /* 1. 強制全域背景為淺灰，文字為深黑 (優先權極高) */
+    .stApp {
+        background-color: #f8f9fa !important;
         color: #2c3e50 !important;
     }
-    
-    /* 修復下拉選單彈出視窗在 iOS 的背景 */
-    div[data-baseweb="popover"] > div {
+
+    /* 2. 【關鍵修復】強制所有段落、標籤、標題變黑 */
+    /* 這會解決 Radio Button 選項文字消失的問題 */
+    .stApp p, .stApp label, .stApp span, .stApp h1, .stApp h2, .stApp h3, .stApp div {
+        color: #2c3e50 !important;
+    }
+
+    /* 3. 【關鍵修復】特別針對 Radio Button (單選按鈕) */
+    /* iOS 經常在這裡強制白字，這裡強制蓋回去 */
+    div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p {
+        color: #2c3e50 !important;
+        font-weight: bold;
+    }
+
+    /* 4. 輸入框與下拉選單修復 */
+    input, textarea, select {
+        color: #2c3e50 !important;
+        background-color: #ffffff !important;
+        -webkit-text-fill-color: #2c3e50 !important; /* Safari 專用屬性 */
+    }
+    /* 下拉選單的選中值 */
+    div[data-baseweb="select"] > div {
+        color: #2c3e50 !important;
         background-color: #ffffff !important;
     }
-    div[data-baseweb="menu"] li {
-        color: #333333 !important;
+    
+    /* 5. 日曆與表格文字修復 */
+    div[data-testid="stDataFrame"] {
+        color: #2c3e50 !important;
     }
-    
-    /* ========== 大胖教練專屬風格 ========== */
-    
-    /* 標題字型 */
-    h1, h2, h3 {
+
+    /* ================================================================= */
+    /* 🎨 大胖教練風格定義區 (例外處理) */
+    /* ================================================================= */
+
+    /* 標題樣式 */
+    h1 {
+        text-align: center; 
+        margin-bottom: 20px;
         font-family: "Microsoft JhengHei", sans-serif;
-        font-weight: 700 !important;
     }
-    
-    /* 按鈕樣式優化 */
+
+    /* 按鈕優化 */
     .stButton>button {
         border-radius: 12px;
         font-weight: bold;
         transition: all 0.3s;
-        color: #333333 !important; /* 按鈕文字也要強制深色 */
         border: 1px solid #ccc;
-    }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background-color: white !important;
+        color: #2c3e50 !important; /* 一般按鈕文字黑 */
     }
     
-    /* 按鈕 Primary 樣式 */
+    /* 🚨 例外：Primary 按鈕 (紅色) 文字必須是白的 */
+    /* 因為上面強制全域變黑，這裡要「反向」救回來 */
     .stButton>button[kind="primary"] {
         background-color: #ff4b4b !important;
-        color: white !important; /* Primary 按鈕維持白字 */
         border: none;
     }
-    
-    /* 學員課程卡片樣式 */
+    .stButton>button[kind="primary"] p {
+        color: #ffffff !important; 
+    }
+    /* 如果按鈕內層結構不同，多加一層保險 */
+    .stButton>button[kind="primary"] * {
+        color: #ffffff !important;
+    }
+
+    /* 卡片樣式 */
     .lesson-card {
         background-color: white;
         padding: 15px;
@@ -90,31 +110,17 @@ st.markdown("""
         border-left-width: 6px;
         border-left-style: solid;
         margin-bottom: 12px;
-        transition: transform 0.2s;
     }
-    .lesson-card:hover {
-        transform: scale(1.01);
-        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    }
-    .time-badge {
-        font-size: 1.1em;
-        font-weight: bold;
-        color: #333333 !important;
-    }
-    .student-name {
-        font-size: 1.1em;
-        font-weight: bold;
-        margin-left: 10px;
-        color: #333333 !important;
-    }
+    
+    /* 卡片內的小標籤 (深色背景)，文字需為白 */
     .cat-tag {
         display: inline-block;
         margin-top: 5px;
         font-size: 0.85em;
         padding: 2px 8px;
         border-radius: 4px;
-        color: white !important;
         background-color: #555;
+        color: #ffffff !important; /* 強制白字 */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -136,9 +142,8 @@ for f, cols in SCHEMA.items():
         else:
             pd.DataFrame(columns=cols).to_csv(f, index=False)
 
-# --- 資料讀取與自動修復 (防崩潰核心 - 保持不變) ---
+# --- 資料讀取與自動修復 (保持不變) ---
 def load_and_fix_data():
-    # 1. 讀取課程
     try:
         df_d = pd.read_csv(DB_FILE)
         if "課程種類" in df_d.columns:
@@ -148,7 +153,6 @@ def load_and_fix_data():
         df_d["日期"] = pd.to_datetime(df_d["日期"], errors='coerce').dt.date
     except: df_d = pd.DataFrame(columns=SCHEMA[DB_FILE])
 
-    # 2. 讀取學員
     try:
         df_s = pd.read_csv(STU_FILE)
         if "剩餘堂數" in df_s.columns and "購買堂數" not in df_s.columns:
@@ -164,14 +168,12 @@ def load_and_fix_data():
         df_s = df_s[SCHEMA[STU_FILE]]
     except: df_s = pd.DataFrame(columns=SCHEMA[STU_FILE])
 
-    # 3. 讀取留言
     try:
         df_r = pd.read_csv(REQ_FILE)
         for c in SCHEMA[REQ_FILE]: 
             if c not in df_r.columns: df_r[c] = ""
     except: df_r = pd.DataFrame(columns=SCHEMA[REQ_FILE])
 
-    # 4. 讀取類別
     try:
         df_c = pd.read_csv(CAT_FILE)
         if df_c.empty or "類別名稱" not in df_c.columns:
@@ -179,7 +181,6 @@ def load_and_fix_data():
         df_c["類別名稱"] = df_c["類別名稱"].astype(str)
     except: df_c = pd.DataFrame({"類別名稱": ["MA 體態", "S 專項"]})
 
-    # 5. 行事曆
     try:
         df_e = pd.read_csv(COACH_EVT_FILE)
         for c in SCHEMA[COACH_EVT_FILE]:
@@ -193,7 +194,7 @@ df_db, df_stu, df_req, df_cat, df_evt = load_and_fix_data()
 
 student_list = df_stu["姓名"].tolist() if not df_stu.empty else []
 
-# --- 關鍵修復：建立絕對安全的下拉選單 (保持不變) ---
+# --- 下拉選單處理 (保持不變) ---
 base_cats = df_cat["類別名稱"].tolist()
 db_cats = df_db["課程種類"].unique().tolist()
 stu_cats = df_stu["課程類別"].unique().tolist()
@@ -206,8 +207,7 @@ if not ALL_CATEGORIES:
     ALL_CATEGORIES = ["(請設定)"]
 
 # ==================== 2. 全域大日曆 ====================
-# [修改 3] 標題置中且加大
-st.markdown("<h1 style='text-align: center; margin-bottom: 20px;'>🏋️ 大胖教練排課表</h1>", unsafe_allow_html=True)
+st.markdown("<h1>🏋️ 大胖教練排課表</h1>", unsafe_allow_html=True)
 
 def get_category_color(cat_name):
     cat_str = str(cat_name)
@@ -314,7 +314,7 @@ calendar_options = {
         "listMonth": { "listDayFormat": { "month": "numeric", "day": "numeric", "weekday": "short" } }
     }
 }
-calendar(events=events, options=calendar_options, key="cal_v34_fix_crash")
+calendar(events=events, options=calendar_options, key="cal_v35_nuclear_fix")
 st.divider()
 
 # ==================== 3. 身份導覽 ====================
@@ -327,7 +327,7 @@ if mode == "🔍 學員查詢":
     if not day_view.empty:
         for _, row in day_view.iterrows():
             c_code = get_category_color(row['課程種類'])
-            # [修改 4] 使用新的 CSS 卡片樣式
+            # 這裡的 class=cat-tag 會觸發上面的 CSS 例外，顯示白字
             st.markdown(f"""
             <div class="lesson-card" style="border-left-color: {c_code};">
                 <span class="time-badge">🕒 {row['時間']}</span>
@@ -381,7 +381,6 @@ else:
                 
                 s = st.selectbox("學員", ["(選學員)"] + student_list)
                 
-                # 選項邏輯：如果學員已有綁定，預設選那個，但也要允許選其他的
                 opts = ALL_CATEGORIES
                 default_idx = 0
                 if s != "(選學員)":
