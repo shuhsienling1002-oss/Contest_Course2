@@ -6,7 +6,7 @@ import zipfile
 import io      
 from datetime import datetime, date, time
 
-# --- 0. [系統級強制設定] 寫入設定檔 (第一道防線) ---
+# --- 0. [系統級強制設定] 寫入設定檔 ---
 config_dir = ".streamlit"
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
@@ -36,73 +36,69 @@ COACH_PASSWORD = "1234"
 
 st.set_page_config(page_title="大胖教練排課表", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. [視覺核彈修復] 針對 iOS 深色模式的強制覆蓋 ---
+# --- 2. [CSS 修復區] ---
 st.markdown("""
     <style>
-    /* 1. 強制主視窗背景全白 */
-    .stApp, [data-testid="stAppViewContainer"] {
+    /* 1. 基本背景與文字鎖定 */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #ffffff !important;
     }
-    [data-testid="stHeader"] {
-        background-color: #ffffff !important;
-    }
-    
-    /* 2. 強制全域一般文字變成深黑 */
     h1, h2, h3, p, div, span, label, li {
         color: #31333F !important;
     }
     
-    /* 3. [按鈕修復 - 針對您截圖中的"重置系統"、"更新項目"] */
-    /* 強制白底、黑字、灰邊框，對抗 iOS 黑底 */
+    /* 2. 按鈕維持您說OK的樣式 */
     .stButton > button {
         background-color: #ffffff !important;
         color: #333333 !important;
         border: 1px solid #d1d5db !important;
         font-weight: bold !important;
     }
-    /* 按鈕滑鼠懸停效果 */
-    .stButton > button:hover {
-        border-color: #FF4B4B !important;
-        color: #FF4B4B !important;
-        background-color: #FFF0F0 !important;
-    }
-
-    /* 4. [按鈕修復 - 針對紅色"新增"按鈕] */
-    /* 強制紅底、白字 */
     .stButton > button[kind="primary"] {
         background-color: #FF4B4B !important;
         color: #ffffff !important;
         border: none !important;
     }
-    /* 確保 Primary 按鈕內的文字一定是白色 (覆蓋全域設定) */
     .stButton > button[kind="primary"] * {
         color: #ffffff !important;
     }
     
-    /* 5. [選項修復] 單選按鈕 (學員查詢/教練後台) */
+    /* 3. 單選按鈕文字 */
     div[data-testid="stRadio"] label p {
         color: #31333F !important;
         font-weight: 900 !important;
         font-size: 1.1rem !important;
     }
 
-    /* 6. [表格修復 - 針對您截圖中的工具列黑底問題] */
+    /* 4. [重點修復] 表格右上角工具列 (針對您的截圖) */
+    /* 強制背景全白，邊框灰色，圖示深黑 */
     [data-testid="stElementToolbar"] {
         background-color: #ffffff !important;
-        color: #333333 !important;
-        opacity: 1 !important; /* 強制不透明 */
+        border: 1px solid #ccc !important;
+        border-radius: 6px !important;
+        opacity: 1 !important;
     }
+    /* 強制工具列內的按鈕圖示變黑 */
     [data-testid="stElementToolbar"] button {
-        color: #333333 !important;
+        color: #000000 !important;
+        fill: #000000 !important;
+    }
+    [data-testid="stElementToolbar"] svg {
+        fill: #000000 !important;
+        color: #000000 !important;
+    }
+    /* 滑鼠移過去時的顏色 */
+    [data-testid="stElementToolbar"] button:hover {
+        background-color: #f0f2f6 !important;
     }
     
-    /* 7. 表格內容 */
+    /* 5. 表格內容 */
     [data-testid="stDataFrame"] {
         background-color: white !important;
         border: 1px solid #ddd !important;
     }
 
-    /* 8. 日曆修復 */
+    /* 6. 日曆修復 */
     .fc {
         background-color: #ffffff !important;
         color: #31333F !important;
@@ -112,26 +108,23 @@ st.markdown("""
         text-decoration: none !important;
     }
     
-    /* 9. 輸入框與選單 */
+    /* 7. 輸入框與選單 */
     input, textarea, select {
         color: #31333F !important;
         background-color: #ffffff !important;
         border: 1px solid #ccc !important;
     }
-    /* 下拉選單選項背景 */
     div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: #31333F !important;
     }
     
-    /* 10. 標題置中 */
+    /* 8. 標題與卡片 */
     h1 {
         text-align: center;
         margin-bottom: 20px;
         font-family: "Microsoft JhengHei", sans-serif;
     }
-    
-    /* 11. 卡片樣式 */
     .lesson-card {
         background-color: #f8f9fa !important;
         padding: 15px;
@@ -143,7 +136,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 初始化檔案邏輯 (保持不變)
+# 初始化檔案
 SCHEMA = {
     DB_FILE: ["日期", "時間", "學員", "課程種類", "備註"],
     REQ_FILE: ["日期", "時間", "姓名", "留言"],
@@ -173,7 +166,6 @@ def load_and_fix_data():
             if c not in df_s.columns: 
                 if c == "購買堂數": df_s[c] = 0
                 else: df_s[c] = ""
-        # [關鍵] 強制轉文字，確保備註欄可輸入
         df_s["課程類別"] = df_s["課程類別"].fillna("").astype(str)
         df_s["備註"] = df_s["備註"].fillna("").astype(str)
         df_s = df_s[SCHEMA[STU_FILE]]
@@ -211,7 +203,7 @@ ALL_CATEGORIES = [str(x) for x in raw_all if x and str(x).lower() != 'nan' and s
 ALL_CATEGORIES.sort()
 if not ALL_CATEGORIES: ALL_CATEGORIES = ["(請設定)"]
 
-# ==================== UI 介面 ====================
+# ==================== UI ====================
 st.markdown("<h1>🏋️ 大胖教練排課表</h1>", unsafe_allow_html=True)
 
 def get_category_color(cat_name):
@@ -224,7 +216,6 @@ def get_category_color(cat_name):
     return palette[hash_val % len(palette)]
 
 events = []
-# 課程
 for _, row in df_db.iterrows():
     if pd.isna(row['日期']): continue
     theme_color = get_category_color(row['課程種類'])
@@ -242,7 +233,6 @@ for _, row in df_db.iterrows():
         })
     except: continue
 
-# 行程
 for _, row in df_evt.iterrows():
     if pd.isna(row['日期']): continue
     evt_color = "#757575" if row['類型'] == "排休" else "#E65100"
@@ -259,7 +249,6 @@ for _, row in df_evt.iterrows():
         except: evt_obj["allDay"] = True
     events.append(evt_obj)
 
-# 假日
 holidays = [
     {"start": "2025-12-31", "title": "跨年夜(補)"}, {"start": "2026-01-01", "title": "元旦"},
     {"start": "2026-02-17", "end": "2026-02-23", "title": "春節連假"},
@@ -268,7 +257,7 @@ holidays = [
 for h in holidays:
     events.append({"title": h["title"], "start": h["start"], "end": h.get("end"), "allDay": True, "backgroundColor": "#D32F2F", "borderColor": "#D32F2F", "textColor": "#FFFFFF", "display": "block"})
 
-calendar(events=events, options={"initialView": "dayGridMonth", "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,listMonth"}}, key="cal_ultimate_fix_v2")
+calendar(events=events, options={"initialView": "dayGridMonth", "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,listMonth"}}, key="cal_toolbar_fix")
 st.divider()
 
 mode = st.radio("", ["🔍 學員查詢", "🔧 教練後台"], horizontal=True)
@@ -280,7 +269,6 @@ if mode == "🔍 學員查詢":
     if not day_view.empty:
         for _, row in day_view.iterrows():
             c_code = get_category_color(row['課程種類'])
-            # 強制卡片樣式
             st.markdown(f"""
             <div class="lesson-card" style="border-left-color: {c_code}; color: #333 !important;">
                 <b style="color:#333">{row['時間']}</b> <span style="color:#333; margin-left:10px">{row['學員']}</span><br>
@@ -339,7 +327,6 @@ else:
 
         with t3:
             st.caption("備註欄可輸入文字")
-            # [修正] 確保這裡使用 TextColumn 讓手機可以打字
             estu = st.data_editor(df_stu, num_rows="dynamic", use_container_width=True,
                 column_config={
                     "姓名": "姓名",
