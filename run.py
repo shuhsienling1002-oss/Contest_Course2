@@ -6,7 +6,7 @@ import zipfile
 import io      
 from datetime import datetime, date, time
 
-# --- 0. [系統級強制設定] 寫入設定檔 (作為第一道防線) ---
+# --- 0. [系統級強制設定] 寫入設定檔 (第一道防線) ---
 config_dir = ".streamlit"
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
@@ -39,72 +39,100 @@ st.set_page_config(page_title="大胖教練排課表", layout="wide", initial_si
 # --- 2. [視覺核彈修復] 針對 iOS 深色模式的強制覆蓋 ---
 st.markdown("""
     <style>
-    /* 1. 強制主視窗背景全白 (覆蓋系統黑底) */
-    [data-testid="stAppViewContainer"] {
+    /* 1. 強制主視窗背景全白 */
+    .stApp, [data-testid="stAppViewContainer"] {
         background-color: #ffffff !important;
     }
     [data-testid="stHeader"] {
         background-color: #ffffff !important;
     }
     
-    /* 2. 強制所有文字變成深黑 (解決白字消失問題) */
+    /* 2. 強制全域一般文字變成深黑 */
     h1, h2, h3, p, div, span, label, li {
         color: #31333F !important;
     }
     
-    /* 3. [您截圖的紅框] 修復單選按鈕 (Radio Button) 文字 */
-    div[data-testid="stRadio"] p {
-        color: #31333F !important;
-        font-weight: 900 !important; /* 加粗讓它更明顯 */
-        font-size: 1.1rem !important;
+    /* 3. [按鈕修復] 針對一般按鈕 (重置、更新、儲存) */
+    /* 強制白底、黑字、灰邊框，對抗 iOS 黑底 */
+    .stButton > button {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+        border: 1px solid #d1d5db !important;
+        font-weight: bold !important;
+    }
+    /* 按鈕滑鼠懸停效果 */
+    .stButton > button:hover {
+        border-color: #FF4B4B !important;
+        color: #FF4B4B !important;
+        background-color: #FFF0F0 !important;
+    }
+
+    /* 4. [按鈕修復] 針對 Primary 按鈕 (新增) */
+    /* 強制紅底、白字 */
+    .stButton > button[kind="primary"] {
+        background-color: #FF4B4B !important;
+        color: #ffffff !important;
+        border: none !important;
+    }
+    /* 確保 Primary 按鈕內的文字一定是白色 (覆蓋全域設定) */
+    .stButton > button[kind="primary"] * {
+        color: #ffffff !important;
     }
     
-    /* 4. [您截圖的紅框] 修復表格工具列 (搜尋/全螢幕按鈕) */
-    [data-testid="stElementToolbar"] button {
+    /* 5. [選項修復] 單選按鈕 (學員查詢/教練後台) */
+    div[data-testid="stRadio"] label p {
         color: #31333F !important;
-        background-color: #f0f2f6 !important; /* 給按鈕加個底色 */
-        border-radius: 5px;
+        font-weight: 900 !important;
+        font-size: 1.1rem !important;
     }
+
+    /* 6. [表格修復] 表格右上角工具列 (搜尋/下載) */
+    [data-testid="stElementToolbar"] {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+    }
+    [data-testid="stElementToolbar"] button {
+        color: #333333 !important;
+    }
+    
+    /* 7. 表格內容 */
     [data-testid="stDataFrame"] {
         background-color: white !important;
         border: 1px solid #ddd !important;
     }
 
-    /* 5. [您截圖的紅框] 修復日曆 (強制白底黑字) */
+    /* 8. 日曆修復 */
     .fc {
         background-color: #ffffff !important;
         color: #31333F !important;
-    }
-    .fc-theme-standard th, .fc-theme-standard td, .fc-theme-standard .fc-scrollgrid {
-        border-color: #ddd !important;
     }
     .fc-col-header-cell-cushion, .fc-daygrid-day-number {
         color: #31333F !important;
         text-decoration: none !important;
     }
     
-    /* 6. 輸入框與選單強制白底黑字 */
+    /* 9. 輸入框與選單 */
     input, textarea, select {
         color: #31333F !important;
         background-color: #ffffff !important;
         border: 1px solid #ccc !important;
     }
-    /* 下拉選單選項 */
+    /* 下拉選單選項背景 */
     div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: #31333F !important;
     }
     
-    /* 7. 大胖教練標題置中 */
+    /* 10. 標題置中 */
     h1 {
         text-align: center;
         margin-bottom: 20px;
         font-family: "Microsoft JhengHei", sans-serif;
     }
     
-    /* 8. 卡片樣式 */
+    /* 11. 卡片樣式 */
     .lesson-card {
-        background-color: #f8f9fa !important; /* 確保卡片有灰底 */
+        background-color: #f8f9fa !important;
         padding: 15px;
         border-radius: 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
@@ -150,7 +178,6 @@ def load_and_fix_data():
         df_s = df_s[SCHEMA[STU_FILE]]
     except: df_s = pd.DataFrame(columns=SCHEMA[STU_FILE])
     
-    # 讀取其他檔案...
     try:
         df_r = pd.read_csv(REQ_FILE)
         for c in SCHEMA[REQ_FILE]: 
@@ -240,7 +267,7 @@ holidays = [
 for h in holidays:
     events.append({"title": h["title"], "start": h["start"], "end": h.get("end"), "allDay": True, "backgroundColor": "#D32F2F", "borderColor": "#D32F2F", "textColor": "#FFFFFF", "display": "block"})
 
-calendar(events=events, options={"initialView": "dayGridMonth", "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,listMonth"}}, key="cal_nuclear_v1")
+calendar(events=events, options={"initialView": "dayGridMonth", "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,listMonth"}}, key="cal_ultimate_fix_v2")
 st.divider()
 
 mode = st.radio("", ["🔍 學員查詢", "🔧 教練後台"], horizontal=True)
