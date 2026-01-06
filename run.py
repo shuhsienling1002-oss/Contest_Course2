@@ -52,7 +52,7 @@ st.markdown("""
         color: #31333F !important;
     }
     
-    /* 3. [按鈕修復] 針對一般按鈕 (重置、更新、儲存) */
+    /* 3. [按鈕修復 - 針對您截圖中的"重置系統"、"更新項目"] */
     /* 強制白底、黑字、灰邊框，對抗 iOS 黑底 */
     .stButton > button {
         background-color: #ffffff !important;
@@ -67,7 +67,7 @@ st.markdown("""
         background-color: #FFF0F0 !important;
     }
 
-    /* 4. [按鈕修復] 針對 Primary 按鈕 (新增) */
+    /* 4. [按鈕修復 - 針對紅色"新增"按鈕] */
     /* 強制紅底、白字 */
     .stButton > button[kind="primary"] {
         background-color: #FF4B4B !important;
@@ -86,10 +86,11 @@ st.markdown("""
         font-size: 1.1rem !important;
     }
 
-    /* 6. [表格修復] 表格右上角工具列 (搜尋/下載) */
+    /* 6. [表格修復 - 針對您截圖中的工具列黑底問題] */
     [data-testid="stElementToolbar"] {
         background-color: #ffffff !important;
         color: #333333 !important;
+        opacity: 1 !important; /* 強制不透明 */
     }
     [data-testid="stElementToolbar"] button {
         color: #333333 !important;
