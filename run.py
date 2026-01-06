@@ -20,20 +20,45 @@ CAT_FILE = "gym_categories.csv"
 COACH_EVT_FILE = "gym_coach_events.csv"
 COACH_PASSWORD = "1234"
 
-# [修改 1] 標題設定變更
+# [修改 1] 標題設定：大胖教練
 st.set_page_config(page_title="大胖教練排課表", layout="wide", initial_sidebar_state="collapsed")
 
-# [修改 2] 版面風格優化 (注入 CSS)
+# [修改 2] 版面風格 + iOS 白底白字修復補丁
 st.markdown("""
     <style>
-    /* 全域字體與背景微調 */
-    .stApp {
-        background-color: #f8f9fa;
+    /* ========== iOS 深色模式強制修復區 (Force Light Theme) ========== */
+    /* 強制將全域文字設為深色，無視手機系統設定 */
+    .stApp, .stApp > header, .stApp > footer {
+        background-color: #f8f9fa !important; /* 強制淺灰背景 */
+        color: #333333 !important;            /* 強制深黑文字 */
     }
+    
+    /* 強制所有輸入框 (Input)、下拉選單 (Select)、文字區 (Textarea) 樣式 */
+    input, textarea, select, div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+        border-color: #d1d5db !important;
+    }
+    
+    /* 強制 Label 與說明文字顏色 */
+    label, .stMarkdown p, .stMarkdown li, h1, h2, h3, h4, h5, h6, span {
+        color: #2c3e50 !important;
+    }
+    
+    /* 修復下拉選單彈出視窗在 iOS 的背景 */
+    div[data-baseweb="popover"] > div {
+        background-color: #ffffff !important;
+    }
+    div[data-baseweb="menu"] li {
+        color: #333333 !important;
+    }
+    
+    /* ========== 大胖教練專屬風格 ========== */
+    
+    /* 標題字型 */
     h1, h2, h3 {
         font-family: "Microsoft JhengHei", sans-serif;
         font-weight: 700 !important;
-        color: #2c3e50;
     }
     
     /* 按鈕樣式優化 */
@@ -41,10 +66,19 @@ st.markdown("""
         border-radius: 12px;
         font-weight: bold;
         transition: all 0.3s;
+        color: #333333 !important; /* 按鈕文字也要強制深色 */
+        border: 1px solid #ccc;
     }
     .stButton>button:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    /* 按鈕 Primary 樣式 */
+    .stButton>button[kind="primary"] {
+        background-color: #ff4b4b !important;
+        color: white !important; /* Primary 按鈕維持白字 */
+        border: none;
     }
     
     /* 學員課程卡片樣式 */
@@ -65,12 +99,13 @@ st.markdown("""
     .time-badge {
         font-size: 1.1em;
         font-weight: bold;
-        color: #333;
+        color: #333333 !important;
     }
     .student-name {
         font-size: 1.1em;
         font-weight: bold;
         margin-left: 10px;
+        color: #333333 !important;
     }
     .cat-tag {
         display: inline-block;
@@ -78,7 +113,7 @@ st.markdown("""
         font-size: 0.85em;
         padding: 2px 8px;
         border-radius: 4px;
-        color: white;
+        color: white !important;
         background-color: #555;
     }
     </style>
@@ -292,7 +327,7 @@ if mode == "🔍 學員查詢":
     if not day_view.empty:
         for _, row in day_view.iterrows():
             c_code = get_category_color(row['課程種類'])
-            # [修改 4] 使用新的 CSS 卡片樣式，更換 HTML 結構
+            # [修改 4] 使用新的 CSS 卡片樣式
             st.markdown(f"""
             <div class="lesson-card" style="border-left-color: {c_code};">
                 <span class="time-badge">🕒 {row['時間']}</span>
