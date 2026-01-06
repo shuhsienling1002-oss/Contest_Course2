@@ -6,7 +6,7 @@ import zipfile
 import io      
 from datetime import datetime, date, time
 
-# --- 0. [系統級強制設定] 寫入設定檔 ---
+# --- 0. [系統級設定] ---
 config_dir = ".streamlit"
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
@@ -39,7 +39,7 @@ st.set_page_config(page_title="大胖教練排課表", layout="wide", initial_si
 # --- 2. [CSS 修復區] ---
 st.markdown("""
     <style>
-    /* 1. 基本背景與文字鎖定 */
+    /* 1. 強制全域背景與文字 */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #ffffff !important;
     }
@@ -47,7 +47,7 @@ st.markdown("""
         color: #31333F !important;
     }
     
-    /* 2. 按鈕維持您說OK的樣式 */
+    /* 2. 按鈕 (維持您滿意的樣子) */
     .stButton > button {
         background-color: #ffffff !important;
         color: #333333 !important;
@@ -70,15 +70,16 @@ st.markdown("""
         font-size: 1.1rem !important;
     }
 
-    /* 4. [重點修復] 表格右上角工具列 (針對您的截圖) */
-    /* 強制背景全白，邊框灰色，圖示深黑 */
+    /* 4. [修復重點] 表格右上角工具列 */
+    /* 使用 color-scheme 強制瀏覽器使用亮色渲染 */
     [data-testid="stElementToolbar"] {
+        color-scheme: light !important;
         background-color: #ffffff !important;
         border: 1px solid #ccc !important;
         border-radius: 6px !important;
         opacity: 1 !important;
     }
-    /* 強制工具列內的按鈕圖示變黑 */
+    /* 強制圖示變黑 */
     [data-testid="stElementToolbar"] button {
         color: #000000 !important;
         fill: #000000 !important;
@@ -86,10 +87,6 @@ st.markdown("""
     [data-testid="stElementToolbar"] svg {
         fill: #000000 !important;
         color: #000000 !important;
-    }
-    /* 滑鼠移過去時的顏色 */
-    [data-testid="stElementToolbar"] button:hover {
-        background-color: #f0f2f6 !important;
     }
     
     /* 5. 表格內容 */
