@@ -6,15 +6,11 @@ import zipfile
 import io      
 from datetime import datetime, date, time
 
-# --- 0. [核心修復] 強制寫入 Streamlit 設定檔，鎖定為「亮色模式」 ---
-# 這能解決 iOS 深色模式導致的表格變黑、文字消失問題
+# --- 0. [系統級強制設定] 寫入設定檔 (作為第一道防線) ---
 config_dir = ".streamlit"
-config_path = os.path.join(config_dir, "config.toml")
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
-
-# 每次執行都檢查並強制寫入設定，確保 Theme 是 Light
-with open(config_path, "w", encoding='utf-8') as f:
+with open(os.path.join(config_dir, "config.toml"), "w", encoding='utf-8') as f:
     f.write('''
 [theme]
 base="light"
@@ -22,10 +18,9 @@ primaryColor="#FF4B4B"
 backgroundColor="#FFFFFF"
 secondaryBackgroundColor="#F0F2F6"
 textColor="#31333F"
-font="sans serif"
 ''')
 
-# 嘗試載入日曆組件
+# 嘗試載入日曆
 try:
     from streamlit_calendar import calendar
 except ImportError:
@@ -41,38 +36,85 @@ COACH_PASSWORD = "1234"
 
 st.set_page_config(page_title="大胖教練排課表", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 2. CSS 補強 (針對 iOS Safari 的額外保險) ---
+# --- 2. [視覺核彈修復] 針對 iOS 深色模式的強制覆蓋 ---
 st.markdown("""
     <style>
-    /* 強制全域文字深黑 */
-    .stApp, .stApp p, .stApp label, .stApp div {
+    /* 1. 強制主視窗背景全白 (覆蓋系統黑底) */
+    [data-testid="stAppViewContainer"] {
+        background-color: #ffffff !important;
+    }
+    [data-testid="stHeader"] {
+        background-color: #ffffff !important;
+    }
+    
+    /* 2. 強制所有文字變成深黑 (解決白字消失問題) */
+    h1, h2, h3, p, div, span, label, li {
         color: #31333F !important;
     }
-    /* 修復 Radio Button 選項文字 */
+    
+    /* 3. [您截圖的紅框] 修復單選按鈕 (Radio Button) 文字 */
     div[data-testid="stRadio"] p {
         color: #31333F !important;
-        font-weight: bold;
+        font-weight: 900 !important; /* 加粗讓它更明顯 */
+        font-size: 1.1rem !important;
     }
-    /* 修復表格內的文字顏色 */
-    div[data-testid="stDataFrame"] {
+    
+    /* 4. [您截圖的紅框] 修復表格工具列 (搜尋/全螢幕按鈕) */
+    [data-testid="stElementToolbar"] button {
+        color: #31333F !important;
+        background-color: #f0f2f6 !important; /* 給按鈕加個底色 */
+        border-radius: 5px;
+    }
+    [data-testid="stDataFrame"] {
+        background-color: white !important;
+        border: 1px solid #ddd !important;
+    }
+
+    /* 5. [您截圖的紅框] 修復日曆 (強制白底黑字) */
+    .fc {
+        background-color: #ffffff !important;
         color: #31333F !important;
     }
-    /* 標題置中 */
-    h1 { text-align: center; font-family: "Microsoft JhengHei"; margin-bottom: 20px; }
+    .fc-theme-standard th, .fc-theme-standard td, .fc-theme-standard .fc-scrollgrid {
+        border-color: #ddd !important;
+    }
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+        color: #31333F !important;
+        text-decoration: none !important;
+    }
     
-    /* 卡片樣式 */
+    /* 6. 輸入框與選單強制白底黑字 */
+    input, textarea, select {
+        color: #31333F !important;
+        background-color: #ffffff !important;
+        border: 1px solid #ccc !important;
+    }
+    /* 下拉選單選項 */
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #31333F !important;
+    }
+    
+    /* 7. 大胖教練標題置中 */
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        font-family: "Microsoft JhengHei", sans-serif;
+    }
+    
+    /* 8. 卡片樣式 */
     .lesson-card {
-        background-color: white;
+        background-color: #f8f9fa !important; /* 確保卡片有灰底 */
         padding: 15px;
         border-radius: 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         border-left: 6px solid #ccc;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 欄位定義
+# 初始化檔案邏輯 (保持不變)
 SCHEMA = {
     DB_FILE: ["日期", "時間", "學員", "課程種類", "備註"],
     REQ_FILE: ["日期", "時間", "姓名", "留言"],
@@ -80,18 +122,12 @@ SCHEMA = {
     CAT_FILE: ["類別名稱"],
     COACH_EVT_FILE: ["日期", "時間", "事項", "類型", "備註"]
 }
-
-# 初始化檔案
 for f, cols in SCHEMA.items():
     if not os.path.exists(f):
-        if f == CAT_FILE:
-            pd.DataFrame({"類別名稱": ["MA 體態", "S 專項"]}).to_csv(f, index=False)
-        else:
-            pd.DataFrame(columns=cols).to_csv(f, index=False)
+        if f == CAT_FILE: pd.DataFrame({"類別名稱": ["MA 體態", "S 專項"]}).to_csv(f, index=False)
+        else: pd.DataFrame(columns=cols).to_csv(f, index=False)
 
-# --- 資料讀取與修復 ---
 def load_and_fix_data():
-    # 1. 課程
     try:
         df_d = pd.read_csv(DB_FILE)
         df_d["課程種類"] = df_d["課程種類"].fillna("").astype(str)
@@ -100,47 +136,36 @@ def load_and_fix_data():
         df_d["日期"] = pd.to_datetime(df_d["日期"], errors='coerce').dt.date
     except: df_d = pd.DataFrame(columns=SCHEMA[DB_FILE])
 
-    # 2. 學員 (關鍵修復：備註轉文字)
     try:
         df_s = pd.read_csv(STU_FILE)
-        # 欄位更名相容舊版
-        if "剩餘堂數" in df_s.columns and "購買堂數" not in df_s.columns:
-            df_s.rename(columns={"剩餘堂數": "購買堂數"}, inplace=True)
-        if "狀態" in df_s.columns and "課程類別" not in df_s.columns:
-            df_s.rename(columns={"狀態": "課程類別"}, inplace=True)
-        
-        # 補齊欄位
+        if "剩餘堂數" in df_s.columns: df_s.rename(columns={"剩餘堂數": "購買堂數"}, inplace=True)
+        if "狀態" in df_s.columns: df_s.rename(columns={"狀態": "課程類別"}, inplace=True)
         for c in SCHEMA[STU_FILE]: 
             if c not in df_s.columns: 
                 if c == "購買堂數": df_s[c] = 0
                 else: df_s[c] = ""
-        
-        # [關鍵] 強制型別轉換，防止「備註」被鎖定為數字
+        # [關鍵] 強制轉文字，確保備註欄可輸入
         df_s["課程類別"] = df_s["課程類別"].fillna("").astype(str)
-        df_s["備註"] = df_s["備註"].fillna("").astype(str) # 強制轉字串，允許輸入中文
-        
+        df_s["備註"] = df_s["備註"].fillna("").astype(str)
         df_s = df_s[SCHEMA[STU_FILE]]
     except: df_s = pd.DataFrame(columns=SCHEMA[STU_FILE])
-
-    # 3. 留言
+    
+    # 讀取其他檔案...
     try:
         df_r = pd.read_csv(REQ_FILE)
         for c in SCHEMA[REQ_FILE]: 
             if c not in df_r.columns: df_r[c] = ""
     except: df_r = pd.DataFrame(columns=SCHEMA[REQ_FILE])
 
-    # 4. 類別
     try:
         df_c = pd.read_csv(CAT_FILE)
-        if df_c.empty or "類別名稱" not in df_c.columns:
-            df_c = pd.DataFrame({"類別名稱": ["MA 體態", "S 專項"]})
+        if df_c.empty: df_c = pd.DataFrame({"類別名稱": ["MA 體態", "S 專項"]})
         df_c["類別名稱"] = df_c["類別名稱"].astype(str)
     except: df_c = pd.DataFrame({"類別名稱": ["MA 體態", "S 專項"]})
 
-    # 5. 行事曆
     try:
         df_e = pd.read_csv(COACH_EVT_FILE)
-        for c in SCHEMA[COACH_EVT_FILE]:
+        for c in SCHEMA[COACH_EVT_FILE]: 
             if c not in df_e.columns: df_e[c] = ""
         df_e["日期"] = pd.to_datetime(df_e["日期"], errors='coerce').dt.date
     except: df_e = pd.DataFrame(columns=SCHEMA[COACH_EVT_FILE])
@@ -150,7 +175,6 @@ def load_and_fix_data():
 df_db, df_stu, df_req, df_cat, df_evt = load_and_fix_data()
 student_list = df_stu["姓名"].tolist() if not df_stu.empty else []
 
-# 類別清單
 base_cats = df_cat["類別名稱"].tolist()
 db_cats = df_db["課程種類"].unique().tolist()
 stu_cats = df_stu["課程類別"].unique().tolist()
@@ -159,7 +183,7 @@ ALL_CATEGORIES = [str(x) for x in raw_all if x and str(x).lower() != 'nan' and s
 ALL_CATEGORIES.sort()
 if not ALL_CATEGORIES: ALL_CATEGORIES = ["(請設定)"]
 
-# ==================== UI 開始 ====================
+# ==================== UI 介面 ====================
 st.markdown("<h1>🏋️ 大胖教練排課表</h1>", unsafe_allow_html=True)
 
 def get_category_color(cat_name):
@@ -172,7 +196,7 @@ def get_category_color(cat_name):
     return palette[hash_val % len(palette)]
 
 events = []
-# 課程轉事件
+# 課程
 for _, row in df_db.iterrows():
     if pd.isna(row['日期']): continue
     theme_color = get_category_color(row['課程種類'])
@@ -190,19 +214,12 @@ for _, row in df_db.iterrows():
         })
     except: continue
 
-# 行程轉事件
+# 行程
 for _, row in df_evt.iterrows():
     if pd.isna(row['日期']): continue
     evt_color = "#757575" if row['類型'] == "排休" else "#E65100"
     is_all_day = (str(row['時間']) == "全天")
-    evt_obj = {
-        "title": f"{row['事項']}",
-        "start": f"{row['日期']}",
-        "backgroundColor": evt_color,
-        "borderColor": evt_color,
-        "textColor": "#FFFFFF",
-        "allDay": is_all_day
-    }
+    evt_obj = {"title": f"{row['事項']}", "start": f"{row['日期']}", "backgroundColor": evt_color, "borderColor": evt_color, "textColor": "#FFFFFF", "allDay": is_all_day}
     if not is_all_day:
         try:
             t_str = str(row['時間'])
@@ -221,39 +238,37 @@ holidays = [
     {"start": "2026-02-28", "title": "228紀念日"}, {"start": "2026-04-04", "end": "2026-04-07", "title": "清明連假"}
 ]
 for h in holidays:
-    events.append({
-        "title": h["title"], "start": h["start"], "end": h.get("end"), "allDay": True,
-        "backgroundColor": "#D32F2F", "borderColor": "#D32F2F", "textColor": "#FFFFFF", "display": "block",
-    })
+    events.append({"title": h["title"], "start": h["start"], "end": h.get("end"), "allDay": True, "backgroundColor": "#D32F2F", "borderColor": "#D32F2F", "textColor": "#FFFFFF", "display": "block"})
 
-calendar(events=events, options={"initialView": "dayGridMonth", "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,listMonth"}}, key="cal_fix_final_v1")
+calendar(events=events, options={"initialView": "dayGridMonth", "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,listMonth"}}, key="cal_nuclear_v1")
 st.divider()
 
-# 身分選擇
 mode = st.radio("", ["🔍 學員查詢", "🔧 教練後台"], horizontal=True)
 
 if mode == "🔍 學員查詢":
     sel_date = st.date_input("查詢日期", date.today())
     day_view = df_db[df_db["日期"] == sel_date].sort_values("時間")
+    
     if not day_view.empty:
         for _, row in day_view.iterrows():
             c_code = get_category_color(row['課程種類'])
+            # 強制卡片樣式
             st.markdown(f"""
-            <div class="lesson-card" style="border-left-color: {c_code};">
+            <div class="lesson-card" style="border-left-color: {c_code}; color: #333 !important;">
                 <b style="color:#333">{row['時間']}</b> <span style="color:#333; margin-left:10px">{row['學員']}</span><br>
                 <span style="background-color:{c_code}; color:white; padding:2px 6px; border-radius:4px; font-size:0.8em">{row['課程種類']}</span>
             </div>""", unsafe_allow_html=True)
     else: st.info("🍵 本日目前無課程安排")
-    st.divider()
     
+    st.divider()
     if student_list:
-        s_name = st.selectbox("查詢餘額", student_list)
+        s_name = st.selectbox("查詢餘額 (選擇姓名)", student_list)
         s_data = df_stu[df_stu["姓名"] == s_name].iloc[0]
         used = len(df_db[df_db["學員"] == s_name])
         try: total = int(float(s_data['購買堂數']))
         except: total = 0
         st.write(f"總額: **{total}** | 已上: **{used}** | 餘額: **{total - used}**")
-
+        
     with st.expander("📝 預約/留言"):
         with st.form("req"):
             req_date = st.date_input("預約日期", value=sel_date)
@@ -262,9 +277,9 @@ if mode == "🔍 學員查詢":
             um = st.text_area("備註")
             if st.form_submit_button("送出", use_container_width=True):
                 pd.concat([df_req, pd.DataFrame([{"日期":str(req_date),"時間":ut,"姓名":un,"留言":um}])]).to_csv(REQ_FILE, index=False)
-                st.success("已送出")
+                st.success("已送出預約")
 
-else: # 後台
+else:
     pwd = st.text_input("密碼", type="password")
     if pwd == COACH_PASSWORD:
         t1, t2, t3, t4, t5, t6, t7, t8 = st.tabs(["排課", "編輯", "名單", "設定", "留言", "📅 行事曆", "📊 報表", "💾 備份"])
@@ -273,69 +288,63 @@ else: # 後台
             with st.container(border=True):
                 d = st.date_input("日期", date.today())
                 man = st.checkbox("手動時間")
-                if man:
-                    t = st.time_input("時間", value=time(7,30)).strftime("%H:%M")
-                else:
-                    t = st.selectbox("時間", [f"{h:02d}:00" for h in range(7, 23)])
+                if man: t = st.time_input("時間", value=time(7, 30)).strftime("%H:%M")
+                else: t = st.selectbox("時間", [f"{h:02d}:00" for h in range(7, 23)])
                 s = st.selectbox("學員", ["(選學員)"] + student_list)
-                
-                # 自動帶入類別
                 def_idx = 0
                 if s != "(選學員)":
-                    saved = df_stu[df_stu["姓名"]==s].iloc[0]["課程類別"]
+                    saved = df_stu[df_stu["姓名"] == s].iloc[0]["課程類別"]
                     if saved in ALL_CATEGORIES: def_idx = ALL_CATEGORIES.index(saved)
                 cat = st.selectbox("項目", ALL_CATEGORIES, index=def_idx)
-                
                 if st.button("➕ 新增", type="primary", use_container_width=True):
                     if s != "(選學員)":
-                        pd.concat([df_db, pd.DataFrame([{"日期":d,"時間":t,"學員":s,"課程種類":cat,"備註":""}])], ignore_index=True).to_csv(DB_FILE, index=False)
+                        pd.concat([df_db, pd.DataFrame([{"日期":d, "時間":t, "學員":s, "課程種類":cat, "備註":""}])], ignore_index=True).to_csv(DB_FILE, index=False)
                         st.success("已排"); st.rerun()
 
-        with t2: # 編輯
+        with t2:
             ed = st.date_input("修課日期", date.today())
             mask = df_db["日期"] == ed
             edited = st.data_editor(df_db[mask], num_rows="dynamic", use_container_width=True,
                 column_config={"課程種類": st.column_config.SelectboxColumn("項目", options=ALL_CATEGORIES)})
-            if st.button("💾 儲存", key="save_edit"):
+            if st.button("💾 儲存", key="sv_edit"):
                 pd.concat([df_db[~mask], edited], ignore_index=True).to_csv(DB_FILE, index=False); st.rerun()
 
-        with t3: # 名單
-            st.caption("備註欄可輸入文字 (如: 2/1購入10堂)")
-            # 這裡 explicitly 定義 TextColumn，確保介面正確
+        with t3:
+            st.caption("備註欄可輸入文字")
+            # [修正] 確保這裡使用 TextColumn 讓手機可以打字
             estu = st.data_editor(df_stu, num_rows="dynamic", use_container_width=True,
                 column_config={
                     "姓名": "姓名",
                     "課程類別": st.column_config.SelectboxColumn("綁定項目", options=ALL_CATEGORIES),
-                    "備註": st.column_config.TextColumn("備註 (可打字)"), # 強制為文字輸入框
-                    "購買堂數": st.column_config.NumberColumn("購買堂數 (僅數字)") # 保持數字以利計算
+                    "備註": st.column_config.TextColumn("備註 (文字輸入)", help="可輸入中文"),
+                    "購買堂數": st.column_config.NumberColumn("購買堂數 (數字)")
                 })
             if st.button("💾 更新名單"):
                 estu.to_csv(STU_FILE, index=False); st.rerun()
 
-        with t4: # 設定
+        with t4:
             ecat = st.data_editor(df_cat, num_rows="dynamic", use_container_width=True)
             if st.button("💾 更新項目"): ecat.to_csv(CAT_FILE, index=False); st.rerun()
 
-        with t5: # 留言
+        with t5:
             st.dataframe(df_req, use_container_width=True)
-            if st.button("🗑️ 清空留言"):
-                pd.DataFrame(columns=["日期", "時間", "姓名", "留言"]).to_csv(REQ_FILE, index=False); st.rerun()
+            if st.button("🗑️ 清空"): pd.DataFrame(columns=["日期", "時間", "姓名", "留言"]).to_csv(REQ_FILE, index=False); st.rerun()
 
-        with t6: # 行事曆
+        with t6:
             evt_d = st.date_input("日期", date.today(), key="ed")
             evt_type = st.selectbox("類型", ["排休", "其他"], key="et")
             is_full = st.checkbox("全天", True)
             if not is_full: evt_t = st.time_input("時間", time(12,0)).strftime("%H:%M")
             else: evt_t = "全天"
             evt_c = st.text_input("事項")
-            if st.button("➕ 新增行程"):
+            if st.button("➕ 新增"):
                 pd.concat([df_evt, pd.DataFrame([{"日期":evt_d,"時間":evt_t,"事項":evt_c,"類型":evt_type,"備註":""}])], ignore_index=True).to_csv(COACH_EVT_FILE, index=False)
                 st.rerun()
             st.divider()
             eevt = st.data_editor(df_evt, num_rows="dynamic", use_container_width=True)
             if st.button("💾 儲存行程"): eevt.to_csv(COACH_EVT_FILE, index=False); st.rerun()
 
-        with t7: # 報表
+        with t7:
             if not df_db.empty:
                 df_stat = df_db.copy(); df_stat["日期"] = pd.to_datetime(df_stat["日期"])
                 df_stat["月"] = df_stat["日期"].dt.strftime("%Y-%m")
@@ -343,7 +352,7 @@ else: # 後台
                 st.dataframe(pivot)
             else: st.info("無數據")
 
-        with t8: # 備份
+        with t8:
             buf = io.BytesIO()
             with zipfile.ZipFile(buf, "x", zipfile.ZIP_DEFLATED) as zf:
                 for f in [DB_FILE, REQ_FILE, STU_FILE, CAT_FILE, COACH_EVT_FILE]:
@@ -353,6 +362,7 @@ else: # 後台
             if up and st.button("🚨 還原"):
                 with zipfile.ZipFile(up,"r") as z: z.extractall(".")
                 st.success("完成"); st.rerun()
+
     elif pwd != "": st.error("密碼錯誤")
 
 if st.button("⚠️ 重置系統"):
